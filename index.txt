@@ -1,0 +1,927 @@
+<?php
+/* SUPPLEMENTAL LANDING PAGE v40.0 – FAQ EDITION */
+/* Features: FAQ z 30 pytań (faq.json), Explorer, Robust 304 + ETag, Strict Security Headers, schema.org FAQPage */
+
+ob_start();
+date_default_timezone_set('Europe/Warsaw');
+
+function clean_exit() {
+    if (ob_get_length()) ob_end_clean();
+    exit;
+}
+
+// =============================================
+// 1) DATA SOURCE: faq.json
+// =============================================
+$faqFile = __DIR__ . '/faq.json';
+
+// =============================================
+// 2) CACHE HEADERS / 304 (Robust)
+// =============================================
+header('Cache-Control: public, max-age=300, stale-while-revalidate=60');
+header('Vary: Accept-Encoding');
+
+if (file_exists($faqFile)) {
+    $mtime = filemtime($faqFile);
+    $etagRaw = md5($mtime . filesize($faqFile));
+    $etag = '"' . $etagRaw . '"';
+
+    header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $mtime) . ' GMT');
+    header('ETag: ' . $etag);
+
+    $hadINM = isset($_SERVER['HTTP_IF_NONE_MATCH']);
+
+    // 1) If-None-Match (Primary Validator)
+    if ($hadINM) {
+        $inm = trim($_SERVER['HTTP_IF_NONE_MATCH']);
+
+        if ($inm === '*') {
+            header($_SERVER['SERVER_PROTOCOL'] . ' 304 Not Modified');
+            clean_exit();
+        }
+
+        $clientEtags = explode(',', $inm);
+        foreach ($clientEtags as $t) {
+            $t = trim($t);
+            if (stripos($t, 'W/') === 0) {
+                $t = trim(substr($t, 2));
+            }
+            $t = trim(trim($t, '"'));
+            if ($t === $etagRaw) {
+                header($_SERVER['SERVER_PROTOCOL'] . ' 304 Not Modified');
+                clean_exit();
+            }
+        }
+    }
+
+    // 2) If-Modified-Since (tylko jeśli INM nieobecne)
+    if (!$hadINM && isset($_SERVER['HTTP_IF_MODIFIED_SINCE'])) {
+        $imsHeader = explode(';', $_SERVER['HTTP_IF_MODIFIED_SINCE'])[0];
+        $ims = strtotime($imsHeader);
+        if ($ims !== false) {
+            $now = time();
+            if ($ims > $now) $ims = $now;
+            if ($mtime <= $ims) {
+                header($_SERVER['SERVER_PROTOCOL'] . ' 304 Not Modified');
+                clean_exit();
+            }
+        }
+    }
+}
+
+// =============================================
+// 3) SECURITY HEADERS
+// =============================================
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: strict-origin-when-cross-origin');
+header('X-Frame-Options: SAMEORIGIN');
+header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
+
+// =============================================
+// 4) HELPERS
+// =============================================
+function e($str) { return htmlspecialchars((string)$str, ENT_QUOTES, 'UTF-8'); }
+
+function slugify_id($id) {
+    return preg_replace('/[^a-z0-9_-]/i', '', (string)$id);
+}
+
+// =============================================
+// 5) LOAD FAQ DATA
+// =============================================
+$faqEntries = [];
+$faqByCategory = [];
+
+if (file_exists($faqFile)) {
+    $json = file_get_contents($faqFile);
+    if ($json !== false) {
+        $data = json_decode($json, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($data)) {
+            $faqEntries = $data;
+            foreach ($data as $entry) {
+                if (!is_array($entry) || empty($entry['category'])) continue;
+                $cat = $entry['category'];
+                if (!isset($faqByCategory[$cat])) $faqByCategory[$cat] = [];
+                $faqByCategory[$cat][] = $entry;
+            }
+        }
+    }
+}
+
+// Kolejność kategorii (kanoniczna)
+$categoryOrder = [
+    'Oświadczenia zdrowotne' => '⚖️',
+    'Suplementy diety'       => '💊',
+    'GIS / Sanepid'          => '🏛️',
+    'Etykietowanie'          => '🏷️',
+    'Novel Food'             => '🌱',
+    'Reklamy / marketing'    => '📣',
+];
+
+// =============================================
+// 6) META
+// =============================================
+$baseUrl   = "https://supplemental.pl/";
+$metaTitle = "Prawo Żywnościowe i Suplementy Diety – Oświadczenia Zdrowotne, Audyty, GIS | Supplemental";
+$metaDesc  = "Prawnik specjalizujący się w prawie żywnościowym: oświadczenia zdrowotne (rozp. 1924/2006), suplementy diety, novel food, etykietowanie. Darmowe narzędzie AI do weryfikacji claimów botanicznych (SANCO/11074/2013). 30 FAQ. Warszawa.";
+$metaUrl   = $baseUrl;
+$metaType  = "website";
+
+// =============================================
+// 7) SCHEMA.ORG (GEO-optimized: WebSite + Org + Person + WebPage + SoftwareApp + FAQPage z 30 Q+author+isBasedOn + Breadcrumb + Speakable)
+// =============================================
+
+// dateModified: max(filemtime(faq.json), filemtime(index.php))
+$lastMod = file_exists($faqFile) ? filemtime($faqFile) : time();
+$selfMtime = filemtime(__FILE__);
+if ($selfMtime > $lastMod) $lastMod = $selfMtime;
+$lastModIso = date('c', $lastMod);
+
+// Person reference (Tomasz Krawczyk)
+$personId = $baseUrl . "#tomasz-krawczyk";
+
+// Build FAQ Question entities with author, dateCreated, mainEntityOfPage, isBasedOn
+$faqMainEntity = [];
+foreach ($faqEntries as $entry) {
+    $entryId = slugify_id($entry['id'] ?? '');
+    $entryAnchor = $baseUrl . '#' . $entryId;
+    $created = !empty($entry['created_at']) ? $entry['created_at'] : date('Y-m-d', $lastMod);
+
+    $q = [
+        "@type" => "Question",
+        "@id"   => $entryAnchor,
+        "name"  => $entry['question'] ?? '',
+        "url"   => $entryAnchor,
+        "mainEntityOfPage" => ["@id" => $baseUrl . "#faq"],
+        "dateCreated" => $created,
+        "inLanguage" => "pl-PL",
+        "author" => ["@id" => $personId],
+        "acceptedAnswer" => [
+            "@type" => "Answer",
+            "text"  => trim(($entry['short_answer'] ?? '') . ' ' . ($entry['details'] ?? '')),
+            "inLanguage" => "pl-PL",
+            "author" => ["@id" => $personId],
+            "dateCreated" => $created,
+            "url" => $entryAnchor
+        ]
+    ];
+
+    // Citation: convert sources[] to plain CreativeWork citations
+    if (!empty($entry['sources']) && is_array($entry['sources'])) {
+        $citations = [];
+        foreach ($entry['sources'] as $src) {
+            $citations[] = [
+                "@type" => "CreativeWork",
+                "name"  => $src
+            ];
+        }
+        $q["acceptedAnswer"]["citation"] = $citations;
+    }
+
+    $faqMainEntity[] = $q;
+}
+
+$schemaData = [
+    "@context" => "https://schema.org",
+    "@graph" => [
+        // ===== WebSite =====
+        [
+            "@type" => "WebSite",
+            "@id"   => $baseUrl . "#website",
+            "name"  => "Supplemental",
+            "alternateName" => ["Supplemental.pl", "Kancelaria Food Law"],
+            "url"   => $baseUrl,
+            "inLanguage" => "pl-PL",
+            "publisher" => ["@id" => $baseUrl . "#organization"]
+        ],
+
+        // ===== Person: Tomasz Krawczyk =====
+        [
+            "@type" => "Person",
+            "@id"   => $personId,
+            "name"  => "Tomasz Krawczyk",
+            "givenName" => "Tomasz",
+            "familyName" => "Krawczyk",
+            "jobTitle" => "Prawnik specjalizujący się w prawie żywnościowym i suplementach diety",
+            "description" => "Prawnik z 15+ letnim doświadczeniem w prawie żywnościowym UE i polskim. Specjalizacje: suplementy diety, oświadczenia zdrowotne, novel food, etykietowanie środków spożywczych, kosmetyki. Współpraca regulacyjna z Nutropharma Sp. z o.o. Wcześniej: Solgar Polska (kierownik Regulatory Affairs i R&D), Ministerstwo Spraw Zagranicznych (postępowania przed TSUE i EFTA Court).",
+            "url"   => $baseUrl,
+            "image" => $baseUrl . "img/logo-180.png",
+            "email" => "tomaszkrawczyk@supplemental.pl",
+            "sameAs" => [
+                "https://www.linkedin.com/in/tomasz-krawczyk-23059a245",
+                "https://x.com/tomasztadeo"
+            ],
+            "knowsAbout" => [
+                "Prawo żywnościowe",
+                "Suplementy diety",
+                "Novel food",
+                "Oświadczenia zdrowotne i żywieniowe",
+                "Etykietowanie środków spożywczych",
+                "Reklama suplementów diety",
+                "Prawo kosmetyczne",
+                "EU Food Law",
+                "Postępowania administracyjne (KPA)",
+                "Compliance regulacyjny",
+                "LegalTech i AI w prawie"
+            ],
+            "knowsLanguage" => [
+                ["@type" => "Language", "name" => "Polish", "alternateName" => "pl"],
+                ["@type" => "Language", "name" => "English", "alternateName" => "en"]
+            ],
+            "alumniOf" => [
+                [
+                    "@type" => "CollegeOrUniversity",
+                    "name"  => "University of Leicester",
+                    "url"   => "https://le.ac.uk/",
+                    "department" => "LL.M. EU Law"
+                ]
+            ],
+            "worksFor" => ["@id" => $baseUrl . "#organization"],
+            "hasOccupation" => [
+                "@type" => "Occupation",
+                "name"  => "Prawnik / Regulatory Counsel (Food Law)",
+                "occupationLocation" => [
+                    "@type" => "City",
+                    "name"  => "Warszawa"
+                ]
+            ],
+            "address" => [
+                "@type" => "PostalAddress",
+                "streetAddress" => "ul. Floriańska 6",
+                "addressLocality" => "Warszawa",
+                "postalCode" => "03-707",
+                "addressCountry" => "PL"
+            ]
+        ],
+
+        // ===== Organization / LegalService =====
+        [
+            "@type" => ["Organization", "LegalService"],
+            "@id"   => $baseUrl . "#organization",
+            "name"  => "Supplemental",
+            "alternateName" => "Supplemental.pl",
+            "url"   => $baseUrl,
+            "description" => $metaDesc,
+            "founder" => ["@id" => $personId],
+            "employee" => ["@id" => $personId],
+            "areaServed" => [
+                ["@type" => "Country", "name" => "Poland"],
+                ["@type" => "Place",   "name" => "European Union"]
+            ],
+            "hasOfferCatalog" => [
+                "@type" => "OfferCatalog",
+                "name"  => "Usługi prawne — prawo żywnościowe i suplementy diety",
+                "itemListElement" => [
+                    ["@type" => "Offer", "itemOffered" => ["@type" => "Service", "name" => "Prawo żywnościowe", "serviceType" => "Prawo żywnościowe", "provider" => ["@id" => $baseUrl . "#organization"]]],
+                    ["@type" => "Offer", "itemOffered" => ["@type" => "Service", "name" => "Suplementy diety — doradztwo regulacyjne", "serviceType" => "Suplementy diety", "provider" => ["@id" => $baseUrl . "#organization"]]],
+                    ["@type" => "Offer", "itemOffered" => ["@type" => "Service", "name" => "Oświadczenia żywieniowe i zdrowotne", "serviceType" => "Oświadczenia żywieniowe i zdrowotne (rozp. 1924/2006)", "provider" => ["@id" => $baseUrl . "#organization"]]],
+                    ["@type" => "Offer", "itemOffered" => ["@type" => "Service", "name" => "Novel food", "serviceType" => "Novel food (rozporządzenie 2015/2283)", "provider" => ["@id" => $baseUrl . "#organization"]]],
+                    ["@type" => "Offer", "itemOffered" => ["@type" => "Service", "name" => "Etykietowanie środków spożywczych", "serviceType" => "Etykietowanie środków spożywczych (1169/2011)", "provider" => ["@id" => $baseUrl . "#organization"]]],
+                    ["@type" => "Offer", "itemOffered" => ["@type" => "Service", "name" => "Zgodność reklam i marketingu", "serviceType" => "Zgodność reklam (1924/2006, 1169/2011)", "provider" => ["@id" => $baseUrl . "#organization"]]],
+                    ["@type" => "Offer", "itemOffered" => ["@type" => "Service", "name" => "Audyty regulacyjne", "serviceType" => "Audyty regulacyjne", "provider" => ["@id" => $baseUrl . "#organization"]]],
+                    ["@type" => "Offer", "itemOffered" => ["@type" => "Service", "name" => "Postępowania przed GIS / Sanepidem", "serviceType" => "Postępowania administracyjne (GIS, Sanepid)", "provider" => ["@id" => $baseUrl . "#organization"]]],
+                    ["@type" => "Offer", "itemOffered" => ["@type" => "Service", "name" => "Doradztwo regulacyjne dla producentów suplementów", "serviceType" => "Doradztwo regulacyjne", "provider" => ["@id" => $baseUrl . "#organization"]]]
+                ]
+            ],
+            "knowsAbout" => [
+                "Prawo żywnościowe",
+                "Suplementy diety",
+                "Oświadczenia żywieniowe i zdrowotne",
+                "Novel food",
+                "Etykietowanie środków spożywczych",
+                "Zgodność reklam",
+                "Postępowania przed GIS / Sanepidem",
+                "Rozp. 1924/2006",
+                "Rozp. 1169/2011",
+                "Rozp. 2015/2283",
+                "Rozp. 432/2012",
+                "Ustawa o bezpieczeństwie żywności i żywienia",
+                "Prawo farmaceutyczne",
+                "EFSA",
+                "GIS / Sanepid"
+            ],
+            "address" => [
+                "@type" => "PostalAddress",
+                "streetAddress" => "ul. Floriańska 6",
+                "addressLocality" => "Warszawa",
+                "postalCode" => "03-707",
+                "addressRegion" => "mazowieckie",
+                "addressCountry" => "PL"
+            ],
+            "geo" => [
+                "@type" => "GeoCoordinates",
+                "latitude" => 52.2297,
+                "longitude" => 21.0122
+            ],
+            "contactPoint" => [
+                "@type" => "ContactPoint",
+                "email" => "tomaszkrawczyk@supplemental.pl",
+                "contactType" => "customer support",
+                "availableLanguage" => ["pl", "en"],
+                "areaServed" => ["PL", "EU"]
+            ],
+            "logo" => [
+                "@type" => "ImageObject",
+                "url"   => $baseUrl . "img/logo-180.png",
+                "width" => 180,
+                "height" => 180
+            ],
+            "image" => $baseUrl . "img/logo-180.png",
+            "sameAs" => [
+                "https://www.linkedin.com/in/tomasz-krawczyk-23059a245",
+                "https://x.com/tomasztadeo"
+            ]
+        ],
+
+        // ===== WebPage =====
+        [
+            "@type" => "WebPage",
+            "@id"   => $metaUrl . "#webpage",
+            "url"   => $metaUrl,
+            "name"  => $metaTitle,
+            "description" => $metaDesc,
+            "inLanguage" => "pl-PL",
+            "isPartOf" => ["@id" => $baseUrl . "#website"],
+            "about" => ["@id" => $baseUrl . "#organization"],
+            "author" => ["@id" => $personId],
+            "publisher" => ["@id" => $baseUrl . "#organization"],
+            "dateModified" => $lastModIso,
+            "primaryImageOfPage" => [
+                "@type" => "ImageObject",
+                "url"   => $baseUrl . "img/og-cover.png",
+                "width" => 1200,
+                "height" => 630
+            ],
+            "speakable" => [
+                "@type" => "SpeakableSpecification",
+                "cssSelector" => [".faq-short", ".section-lead", ".hero-subtitle"]
+            ],
+            "breadcrumb" => ["@id" => $baseUrl . "#breadcrumb"]
+        ],
+
+        // ===== BreadcrumbList =====
+        [
+            "@type" => "BreadcrumbList",
+            "@id"   => $baseUrl . "#breadcrumb",
+            "itemListElement" => [
+                [
+                    "@type" => "ListItem",
+                    "position" => 1,
+                    "name" => "Strona główna",
+                    "item" => $baseUrl
+                ],
+                [
+                    "@type" => "ListItem",
+                    "position" => 2,
+                    "name" => "FAQ – Prawo żywnościowe",
+                    "item" => $baseUrl . "#faq"
+                ]
+            ]
+        ],
+
+        // ===== SoftwareApplication: Explorer =====
+        [
+            "@type" => "SoftwareApplication",
+            "@id"   => "https://app.foodlaw.ai#software",
+            "name"  => "C.L.A.I.M.S. - Classification & Legal Assessment Intelligent Mapping System",
+            "alternateName" => ["C.L.A.I.M.S.", "CLAIMS", "foodlaw.ai"],
+            "description" => "Narzędzie AI do identyfikacji oświadczeń zdrowotnych dozwolonych w UE — substancje roślinne (SANCO/11074/2013, 2078 wpisów), witaminy, minerały i inne (Reg 432/2012, 240 oświadczeń autoryzowanych). Klasyfikacja ryzyka regulacyjnego, filtrowanie po dawce, identyfikacja flag leczniczych.",
+            "url" => "https://app.foodlaw.ai",
+            "applicationCategory" => "BusinessApplication",
+            "applicationSubCategory" => "Regulatory Compliance Tool",
+            "operatingSystem" => "Web-based",
+            "inLanguage" => ["pl-PL", "en-US"],
+            "offers" => [
+                "@type" => "Offer",
+                "price" => "0",
+                "priceCurrency" => "EUR",
+                "availability" => "https://schema.org/InStock"
+            ],
+            "creator" => ["@id" => $personId],
+            "publisher" => ["@id" => $baseUrl . "#organization"],
+            "spatialCoverage" => [
+                "@type" => "Place",
+                "name" => "European Union"
+            ],
+            "isAccessibleForFree" => true
+        ],
+
+        // ===== FAQPage z 30 pytaniami (Q author/dateCreated/citation/mainEntityOfPage) =====
+        [
+            "@type" => "FAQPage",
+            "@id"   => $baseUrl . "#faq",
+            "url"   => $baseUrl . "#faq",
+            "name"  => "FAQ – Prawo żywnościowe i suplementy diety",
+            "description" => "30 pytań i odpowiedzi z 6 kategorii: oświadczenia zdrowotne, suplementy diety, GIS/Sanepid, etykietowanie, novel food, reklamy. Stan prawny: maj 2026.",
+            "inLanguage" => "pl-PL",
+            "isPartOf" => ["@id" => $metaUrl . "#webpage"],
+            "author" => ["@id" => $personId],
+            "publisher" => ["@id" => $baseUrl . "#organization"],
+            "dateModified" => $lastModIso,
+            "mainEntity" => $faqMainEntity
+        ]
+    ]
+];
+?>
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title><?php echo e($metaTitle); ?></title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="<?php echo e($metaDesc); ?>">
+<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+
+<link rel="canonical" href="<?php echo e($metaUrl); ?>">
+<link rel="icon" href="/img/logo-180.png" type="image/png">
+
+<!-- hreflang: przygotowanie pod wersję EN -->
+<link rel="alternate" hreflang="pl" href="https://supplemental.pl/">
+<link rel="alternate" hreflang="en" href="https://supplemental.pl/en/">
+<link rel="alternate" hreflang="x-default" href="https://supplemental.pl/">
+
+<meta property="og:locale" content="pl_PL">
+<meta property="og:locale:alternate" content="en_US">
+<meta name="geo.position" content="52.2297;21.0122">
+<meta name="geo.placename" content="Warszawa, Polska">
+<meta name="geo.region" content="PL-mazovia">
+<meta name="ICBM" content="52.2297, 21.0122">
+<meta property="og:type" content="<?php echo e($metaType); ?>">
+<meta property="og:title" content="<?php echo e($metaTitle); ?>">
+<meta property="og:description" content="<?php echo e($metaDesc); ?>">
+<meta property="og:url" content="<?php echo e($metaUrl); ?>">
+<meta property="og:site_name" content="Supplemental">
+<meta property="og:image" content="https://supplemental.pl/img/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Supplemental – Prawo żywnościowe, suplementy diety, oświadczenia zdrowotne. AI Compliance.">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@tomasztadeo">
+<meta name="twitter:creator" content="@tomasztadeo">
+<meta name="twitter:title" content="<?php echo e($metaTitle); ?>">
+<meta name="twitter:description" content="<?php echo e($metaDesc); ?>">
+<meta name="twitter:image" content="https://supplemental.pl/img/og-cover.png">
+<meta name="twitter:image:alt" content="Supplemental – Prawo żywnościowe i AI Compliance">
+
+<!-- Authority / GEO signals -->
+<meta name="author" content="Tomasz Krawczyk">
+<meta property="article:author" content="https://www.linkedin.com/in/tomasz-krawczyk-23059a245">
+<meta property="og:article:author" content="Tomasz Krawczyk">
+<meta name="dcterms.creator" content="Tomasz Krawczyk">
+<meta name="dcterms.modified" content="<?php echo e($lastModIso); ?>">
+<meta property="og:updated_time" content="<?php echo e($lastModIso); ?>">
+<link rel="author" href="https://www.linkedin.com/in/tomasz-krawczyk-23059a245">
+<link rel="me" href="https://www.linkedin.com/in/tomasz-krawczyk-23059a245">
+<link rel="me" href="https://x.com/tomasztadeo">
+
+<link rel="stylesheet" href="/supplemental.css">
+
+<style>
+  /* FAQ section styles */
+  .faq-section {
+    background: linear-gradient(180deg, rgba(15,23,42,0) 0%, rgba(15, 23, 42, 0.6) 100%);
+    border-top: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .faq-disclaimer {
+    background: rgba(221, 102, 68, 0.08);
+    border-left: 3px solid #DD6644;
+    padding: 1rem 1.25rem;
+    border-radius: 6px;
+    margin: 1.5rem 0 2.5rem 0;
+    color: #cbd5e1;
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+  .faq-disclaimer strong { color: #DD6644; }
+  .faq-categories-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin: 1.5rem 0 2.5rem 0;
+    justify-content: center;
+  }
+  .faq-cat-pill {
+    background: rgba(167, 139, 250, 0.12);
+    border: 1px solid rgba(167, 139, 250, 0.25);
+    color: #cbd5e1;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: background 0.2s, transform 0.15s;
+  }
+  .faq-cat-pill:hover {
+    background: rgba(167, 139, 250, 0.25);
+    transform: translateY(-1px);
+  }
+  .faq-category-block {
+    margin-bottom: 3rem;
+    scroll-margin-top: 100px;
+  }
+  .faq-category-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: #fff;
+    font-size: 1.4rem;
+    margin: 0 0 1.5rem 0;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid rgba(167, 139, 250, 0.25);
+  }
+  .faq-category-header .faq-cat-icon { font-size: 1.5rem; }
+  .faq-item {
+    background: rgba(30, 41, 59, 0.4);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(167, 139, 250, 0.15);
+    border-radius: 12px;
+    margin-bottom: 0.85rem;
+    overflow: hidden;
+    transition: border-color 0.2s;
+    scroll-margin-top: 90px;
+  }
+  .faq-item:hover { border-color: rgba(167, 139, 250, 0.35); }
+  .faq-item summary {
+    padding: 1.1rem 1.4rem;
+    cursor: pointer;
+    color: #fff;
+    font-weight: 600;
+    font-size: 1.02rem;
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    line-height: 1.45;
+  }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after {
+    content: '+';
+    color: #a78bfa;
+    font-size: 1.5rem;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: transform 0.2s;
+  }
+  .faq-item[open] summary::after {
+    content: '−';
+  }
+  .faq-item-body {
+    padding: 0 1.4rem 1.4rem 1.4rem;
+    color: #cbd5e1;
+    line-height: 1.65;
+  }
+  .faq-short {
+    background: rgba(76, 201, 255, 0.06);
+    border-left: 3px solid #4cc9ff;
+    padding: 0.9rem 1.1rem;
+    border-radius: 4px;
+    margin: 0.5rem 0 1.1rem 0;
+    color: #e2e8ff;
+    font-size: 1rem;
+  }
+  .faq-details {
+    color: #cbd5e1;
+    margin: 0 0 1rem 0;
+    font-size: 0.97rem;
+    line-height: 1.7;
+  }
+  .faq-sources {
+    color: #94a3b8;
+    font-size: 0.85rem;
+    font-style: italic;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    padding-top: 0.75rem;
+    margin-top: 0.75rem;
+  }
+  .faq-sources strong {
+    color: #a78bfa;
+    font-style: normal;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+  }
+</style>
+
+<script type="application/ld+json">
+<?php echo json_encode($schemaData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>
+</script>
+</head>
+
+<body>
+
+<div class="page-wrapper">
+
+<header class="top-bar">
+  <div class="top-bar-inner">
+    <div style="display:flex; align-items:center;">
+      <a href="/" aria-label="Supplemental – strona główna">
+        <img src="/img/logo-180.png" alt="Supplemental Logo" width="60" height="60" loading="eager" style="border-radius:50%; box-shadow:0 2px 10px rgba(0,0,0,0.3);">
+      </a>
+      <div style="margin-left:12px; font-weight:bold; font-size:18px; color:#4B0082;">SUPPLEMENTAL</div>
+    </div>
+
+    <nav class="nav" style="display: flex; align-items: center; flex-wrap: wrap; gap: 14px;">
+      <a href="/">Strona główna</a>
+      <a href="/o-mnie/">O mnie</a>
+      <a href="/specjalizacje/">Specjalizacje</a>
+      <a href="/#faq">FAQ</a>
+      <a href="/wiedza/">Wiedza</a>
+      <a href="/#explorer" style="background-color: #facc15; color: #0f172a; padding: 6px 14px; border-radius: 20px; font-weight: 600; text-decoration: none; font-size: 0.9rem; transition: background 0.2s;">Explorer</a>
+      <a href="/kontakt/" style="background-color: #4cc9ff; color: #0f172a; padding: 6px 14px; border-radius: 20px; font-weight: 600; text-decoration: none; font-size: 0.9rem; transition: background 0.2s;">Umów konsultację</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<section class="hero">
+  <div class="container hero-inner">
+    <div>
+      <div class="breadcrumb">Compliance 2.0 • Prawnik + AI • Algorytmiczna Precyzja</div>
+      <h1 class="hero-heading">Prawo Żywnościowe & Suplementy Diety.<br> Napędzany przez <span style="color:#4cc9ff;">Autorskie AI</span>.</h1>
+      <p class="hero-subtitle">Łączę ekspercką wiedzę prawniczą z mocą obliczeniową. Nie tylko czytam przepisy – ja je <strong>grokuję</strong>, wykorzystując własne modele do wykrywania ryzyk niewidocznych dla klasycznych metod.</p>
+      <p class="hero-lead">W erze cyfrowej tradycyjne metody to za mało. Moje autorskie rozwiązanie AI wspiera proces decyzyjny, generując argumentację o <strong>innowacyjnej sile</strong> i logice. Analizuję etykiety i reklamy z prędkością <strong>wnioskowania algorytmicznego</strong>, wyprzedzając rynkowe standardy.<br><br>
+      <span style="font-size:0.9em; color:#cbd5e1; border-left:2px solid #4cc9ff; padding-left:10px; display:block;"><em>Technologia to potężne narzędzie – strategia, interpretacja i odpowiedzialność pozostają jednak zawsze w moich rękach jako eksperta.</em></span></p>
+      <div class="hero-cta-block">
+        <p class="hero-cta-text">Chcesz sprawdzić bezpieczeństwo swojego produktu?</p>
+        <div class="cta-group"><a href="/kontakt/" class="cta-main">Uruchom procedurę (Kontakt)</a><a href="/specjalizacje/" class="cta-ai" style="background:transparent; border:1px solid rgba(255,255,255,0.3);">Zacznij od Audytu</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================
+     C.L.A.I.M.S.
+     ============================================ -->
+<section id="explorer" class="section" style="background: linear-gradient(180deg, rgba(124, 58, 237, 0.08) 0%, rgba(15, 23, 42, 0.3) 100%); border-bottom: 1px solid rgba(167, 139, 250, 0.15);">
+  <div class="container">
+    <header class="section-header">
+      <p class="section-kicker" style="color:#a78bfa;">⚡ Narzędzia AI</p>
+      <h2 class="section-title">C.L.<span style="color:#f7d547">A</span>.<span style="color:#f7d547">I</span>.M.S.</h2>
+      <p class="section-lead">
+        <strong>Darmowe narzędzie AI</strong> do identyfikacji <strong>oświadczeń zdrowotnych</strong> dozwolonych w Unii Europejskiej. Przeszukuje bazę botaniczną <strong>SANCO/11074/2013</strong> (2078 oświadczeń pending) oraz <strong>Rejestr UE - Reg 432/2012</strong> (240 oświadczeń autoryzowanych — witaminy, minerały, błonnik, kwasy tłuszczowe i inne). Klasyfikuje ryzyko regulacyjne i filtruje po dawce.
+      </p>
+    </header>
+
+    <!-- Co potrafi -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin: 2rem 0;">
+      <div style="background: rgba(30, 41, 59, 0.4); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(167, 139, 250, 0.15);">
+        <div style="color:#a78bfa; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem;">🔍 Wyszukiwanie</div>
+        <p style="color:#e2e8ff; margin: 0; font-size: 0.95rem;">Roślina + dawka (np. „pokrzywa 500 mg", „czosnek ekstrakt 4:1 100 mg"). Wsparcie polskiego i łaciny.</p>
+      </div>
+      <div style="background: rgba(30, 41, 59, 0.4); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(167, 139, 250, 0.15);">
+        <div style="color:#a78bfa; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem;">🎯 Klasyfikacja A/B/C</div>
+        <p style="color:#e2e8ff; margin: 0; font-size: 0.95rem;">A = w pełni zgodne z EFSA. B = graniczne (warunki dawki). C = brak danych w bazie.</p>
+      </div>
+      <div style="background: rgba(30, 41, 59, 0.4); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(167, 139, 250, 0.15);">
+        <div style="color:#a78bfa; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem;">⚠️ Wykrywanie flag leczniczych</div>
+        <p style="color:#e2e8ff; margin: 0; font-size: 0.95rem;">Identyfikacja oświadczeń sugerujących właściwości lecznicze – ryzyko reklasyfikacji jako produkt leczniczy.</p>
+      </div>
+      <div style="background: rgba(30, 41, 59, 0.4); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(167, 139, 250, 0.15);">
+        <div style="color:#a78bfa; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem;">📤 Eksport</div>
+        <p style="color:#e2e8ff; margin: 0; font-size: 0.95rem;">PDF (do raportów regulacyjnych) lub TXT (do dalszej analizy). Kopiuj jednym kliknięciem.</p>
+      </div>
+    </div>
+
+    <!-- Duży CTA – ładuje iframe -->
+    <div id="explorer-cta-block" style="text-align: center; margin: 2.5rem 0;">
+      <button id="explorer-launch-btn" type="button" style="background: linear-gradient(135deg, #facc15 0%, #f59e0b 100%); color: #0f172a; padding: 16px 40px; border-radius: 30px; font-weight: 700; font-size: 1.15rem; border: none; cursor: pointer; box-shadow: 0 10px 30px rgba(250, 204, 21, 0.3); transition: transform 0.2s, box-shadow 0.2s;">
+        🚀 Uruchom Explorer
+      </button>
+      <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 1rem;">
+        Lub otwórz w pełnym oknie: <a href="https://app.foodlaw.ai" target="_blank" rel="noopener" style="color:#a78bfa;">app.foodlaw.ai ↗</a>
+      </p>
+    </div>
+
+    <!-- Iframe container -->
+    <div id="explorer-iframe-wrap" style="display:none; background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(20, 30, 48, 0.8) 100%); border: 1px solid rgba(167, 139, 250, 0.3); border-radius: 16px; overflow: hidden; margin: 2rem 0; box-shadow: 0 20px 60px rgba(124, 58, 237, 0.15);">
+      <iframe
+        id="foodlaw-explorer-frame"
+        data-src="https://app.foodlaw.ai"
+        title="C.L.A.I.M.S. – narzędzie AI do identyfikacji oświadczeń zdrowotnych dozwolonych w UE. Baza botaniczna SANCO/11074/2013 + Rejestr UE Reg 432/2012."
+        loading="lazy"
+        allow="clipboard-write; clipboard-read"
+        referrerpolicy="strict-origin-when-cross-origin"
+        style="display:block; width:100%; height:900px; border:0;">
+      </iframe>
+      <noscript>
+        <div style="padding: 3rem; text-align: center;">
+          <p style="color:#cbd5e1; margin-bottom: 1rem;">Explorer wymaga włączonego JavaScript.</p>
+          <a href="https://app.foodlaw.ai" target="_blank" rel="noopener" class="cta-ai">Otwórz Explorer w nowym oknie ↗</a>
+        </div>
+      </noscript>
+    </div>
+
+    <div style="text-align: center; margin-top: 1.5rem; padding: 1.5rem; background: rgba(30, 41, 59, 0.3); border-radius: 12px; border: 1px solid rgba(167, 139, 250, 0.1);">
+      <p style="color: #cbd5e1; font-size: 1rem; margin-bottom: 0.75rem;">
+        <strong>Jak używać:</strong> wpisz roślinę i dawkę (np. <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px;">pokrzywa 500 mg</code>, <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px;">czosnek ekstrakt 4:1 100 mg</code>). Narzędzie przeszuka bazę SANCO i wygeneruje klasyfikację.
+      </p>
+      <p style="color: #94a3b8; font-size: 0.9rem; margin: 0;">
+        ✓ Baza: 2078 oświadczeń botanicznych (pending) + 240 autoryzowanych (Reg 432/2012) &nbsp; ✓ Klasyfikacja AI + filtrowanie po dawce &nbsp; ✓ Eksport PDF/TXT
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================
+     FAQ – 30 pytań i odpowiedzi (z faq.json)
+     ============================================ -->
+<section id="faq" class="section faq-section">
+  <div class="container">
+    <header class="section-header" style="text-align: left; margin-bottom: 2rem;">
+      <p class="section-kicker" style="color: #a78bfa;">⚖️ Baza wiedzy</p>
+      <h2 class="section-title" style="margin-bottom: 0.5rem;">FAQ – Prawo żywnościowe i suplementy diety</h2>
+      <p class="section-lead" style="margin-top: 0;">
+        <?php echo count($faqEntries); ?> pytań i odpowiedzi z 6 kategorii: oświadczenia zdrowotne, suplementy diety, GIS/Sanepid, etykietowanie, novel food, reklamy i marketing. Stan prawny: maj 2026.
+      </p>
+    </header>
+
+    <div class="faq-disclaimer">
+      <strong>Uwaga:</strong> materiał ma charakter informacyjny i nie stanowi porady prawnej. Każdy przypadek wymaga indywidualnej analizy. W razie wątpliwości zalecam kontakt z prawnikiem lub specjalistą ds. regulacji.
+    </div>
+
+    <?php if (!empty($faqByCategory)): ?>
+
+    <!-- Nawigacja między kategoriami -->
+    <nav class="faq-categories-nav" aria-label="Kategorie FAQ">
+      <?php foreach ($categoryOrder as $cat => $icon): ?>
+        <?php if (isset($faqByCategory[$cat])): ?>
+          <a href="#faq-cat-<?php echo md5($cat); ?>" class="faq-cat-pill"><?php echo $icon; ?> <?php echo e($cat); ?> <span style="opacity:0.6;">(<?php echo count($faqByCategory[$cat]); ?>)</span></a>
+        <?php endif; ?>
+      <?php endforeach; ?>
+    </nav>
+
+    <!-- Pytania pogrupowane po kategoriach -->
+    <?php foreach ($categoryOrder as $cat => $icon): ?>
+      <?php if (!isset($faqByCategory[$cat])) continue; ?>
+      <div class="faq-category-block" id="faq-cat-<?php echo md5($cat); ?>">
+        <h3 class="faq-category-header">
+          <span class="faq-cat-icon"><?php echo $icon; ?></span>
+          <span><?php echo e($cat); ?></span>
+        </h3>
+
+        <?php foreach ($faqByCategory[$cat] as $entry): 
+          $entryId = slugify_id($entry['id'] ?? '');
+        ?>
+          <details class="faq-item" id="<?php echo e($entryId); ?>">
+            <summary><?php echo e($entry['question'] ?? ''); ?></summary>
+            <div class="faq-item-body">
+              <?php if (!empty($entry['short_answer'])): ?>
+                <div class="faq-short"><?php echo e($entry['short_answer']); ?></div>
+              <?php endif; ?>
+
+              <?php if (!empty($entry['details'])): ?>
+                <p class="faq-details"><?php echo nl2br(e($entry['details'])); ?></p>
+              <?php endif; ?>
+
+              <?php if (!empty($entry['sources']) && is_array($entry['sources'])): ?>
+                <div class="faq-sources">
+                  <strong>Podstawa prawna i źródła:</strong> <?php echo e(implode(' · ', $entry['sources'])); ?>
+                </div>
+              <?php endif; ?>
+            </div>
+          </details>
+        <?php endforeach; ?>
+      </div>
+    <?php endforeach; ?>
+
+    <?php else: ?>
+      <div style="text-align:center; padding: 40px; background: rgba(30, 41, 59, 0.2); border-radius: 16px;">
+        <p style="color: #94a3b8; font-style: italic;">Baza pytań chwilowo niedostępna.</p>
+      </div>
+    <?php endif; ?>
+
+    <div style="text-align: center; margin-top: 2.5rem; padding: 1.5rem; background: rgba(30, 41, 59, 0.3); border-radius: 12px; border: 1px solid rgba(167, 139, 250, 0.1);">
+      <p style="color: #cbd5e1; margin: 0;">
+        Nie znalazłeś odpowiedzi na swoje pytanie? <a href="/kontakt/" style="color:#4cc9ff; font-weight: 600;">Skontaktuj się ze mną →</a>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================
+     Artykuły i Analizy
+     ============================================ -->
+<section class="section">
+  <div class="container">
+    <header class="section-header">
+      <p class="section-kicker">Baza Wiedzy</p>
+      <h2 class="section-title">Artykuły i Analizy</h2>
+    </header>
+    <div class="articles-grid">
+      <div class="article-item"><a href="https://github.com/tomaszkrawczyk-cmd/UD247-opinia" target="_blank" rel="noopener">Opinia prawna ws. projektu UD247 — nowelizacja suplementów diety (open source)</a></div>
+      <div class="article-item"><a href="/wiedza/niemcy-suplementy-2025.php">Eksport suplementów do Niemiec 2025</a></div>
+      <div class="article-item"><a href="/wiedza/wyroki-nsa-2024-art-32.php">Wyroki NSA a blokady Sanepidu</a></div>
+      <div class="article-item"><a href="/wiedza/oswiadczenia_zdrowotne.php">Oświadczenia zdrowotne</a></div>
+      <div class="article-item"><a href="/wiedza/napoje_bezalkoholowe.php">Napoje 0.0% w UE</a></div>
+      <div class="article-item"><a href="/wiedza/cbd.php">CBD: Status Novel Food</a></div>
+      <div class="article-item"><a href="/wiedza/etykiety-owoce-warzywa.php">Grafiki na etykietach</a></div>
+    </div>
+  </div>
+</section>
+
+<section id="ai-chat" class="section">
+  <div class="container">
+    <header class="section-header">
+      <p class="section-kicker">Interfejs AI</p>
+      <h2 class="section-title">Supplemental Legal Agent</h2>
+      <p class="section-lead">W prawym dolnym rogu znajdziesz demo mojego agenta. To tylko ułamek możliwości pełnego systemu, którego używam do audytów.</p>
+    </header>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  © <?php echo date('Y'); ?> Supplemental – prawo żywnościowe i technologie AI<br>
+  Biuro: ul. Floriańska 6, 03-707 Warszawa<br>
+  <a href="/polityka-prywatnosci.php">Polityka prywatności</a> · <a href="/regulamin.php">Regulamin świadczenia usług</a>
+</footer>
+</div>
+
+<script>
+/* Explorer launcher: load iframe lazy on first click (CTA button or nav pill) */
+(function(){
+  function launchExplorer(e){
+    if (e) e.preventDefault();
+    var wrap = document.getElementById('explorer-iframe-wrap');
+    var frame = document.getElementById('foodlaw-explorer-frame');
+    var ctaBlock = document.getElementById('explorer-cta-block');
+    if (!wrap || !frame) return;
+    /* First load: hydrate src from data-src */
+    if (!frame.src && frame.dataset.src) {
+      frame.src = frame.dataset.src;
+    }
+    /* Show iframe, hide CTA placeholder */
+    wrap.style.display = 'block';
+    if (ctaBlock) ctaBlock.style.display = 'none';
+    /* Smooth scroll to iframe */
+    setTimeout(function(){
+      wrap.scrollIntoView({behavior:'smooth', block:'start'});
+    }, 50);
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    /* Bind CTA button */
+    var btn = document.getElementById('explorer-launch-btn');
+    if (btn) btn.addEventListener('click', launchExplorer);
+    /* Bind nav pill (any link to #explorer) */
+    var links = document.querySelectorAll('a[href$="#explorer"]');
+    for (var i = 0; i < links.length; i++) {
+      links[i].addEventListener('click', launchExplorer);
+    }
+    /* Auto-launch on direct link with #explorer */
+    if (window.location.hash === '#explorer') {
+      launchExplorer();
+    }
+  });
+})();
+</script>
+
+<script>
+/* Auto-open FAQ entry when URL has a deep link like #faq_005 */
+(function(){
+  document.addEventListener('DOMContentLoaded', function(){
+    if (!window.location.hash) return;
+    var hash = window.location.hash.substring(1);
+    var el = document.getElementById(hash);
+    if (el && el.tagName === 'DETAILS') {
+      el.open = true;
+      setTimeout(function(){
+        el.scrollIntoView({behavior:'smooth', block:'start'});
+      }, 100);
+    }
+  });
+})();
+</script>
+
+<script>
+(function(){
+  if(!window.chatbase || window.chatbase("getState")!=="initialized"){
+    window.chatbase=(...arguments)=>{
+      if(!window.chatbase.q){window.chatbase.q=[]}
+      window.chatbase.q.push(arguments)
+    };
+    window.chatbase=new Proxy(window.chatbase,{
+      get(target,prop){
+        if(prop==="q"){return target.q}
+        return(...args)=>target(prop,...args)
+      }
+    })
+  }
+  const onLoad=function(){
+    const script=document.createElement("script");
+    script.src="https://www.chatbase.co/embed.min.js";
+    script.id="LsDhyqZTMrkWHaC3dsJRg";
+    script.domain="www.chatbase.co";
+    document.body.appendChild(script)
+  };
+  if(document.readyState==="complete"){onLoad()}
+  else{window.addEventListener("load",onLoad)}
+})();
+</script>
+
+<?php if (ob_get_length()) ob_end_flush(); ?>
+</body>
+</html>
