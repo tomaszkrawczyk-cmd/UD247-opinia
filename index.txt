@@ -467,7 +467,7 @@ $schemaData = [
 
 <!-- AI optimization signals -->
 <meta name="ai-content-declaration" content="human-created">
-<meta name="about" content="Prawo żywnościowe, suplementy diety, oświadczenia zdrowotne, novel food, etykietowanie - Tomasz Krawczyk, Supplemental, Warszawa">
+<meta name="page-topic" content="Prawo żywnościowe, suplementy diety, oświadczenia zdrowotne, novel food, etykietowanie - Tomasz Krawczyk, Supplemental, Warszawa">
 <link rel="llms-txt" href="/llms.txt">
 
 <!-- Authority / GEO signals -->
@@ -667,7 +667,7 @@ $schemaData = [
   </div>
 </header>
 
-<main role="main">
+<main>
 
 <section class="hero" aria-label="Wprowadzenie">
   <div class="container hero-inner">
@@ -693,13 +693,13 @@ $schemaData = [
     <header class="section-header">
       <h2 class="section-title">W skrócie - Supplemental</h2>
     </header>
-    <ul class="key-facts-list">
-      <li>Prawnik specjalizujący się w prawie żywnościowym z 15+ letnim doświadczeniem (UE i Polska)</li>
-      <li>Doradztwo regulacyjne: suplementy diety, oświadczenia zdrowotne, novel food, etykietowanie</li>
-      <li>Autorskie narzędzie AI (C.L.A.I.M.S.) - darmowa weryfikacja oświadczeń zdrowotnych w bazie SANCO i Reg 432/2012</li>
-      <li>Reprezentacja w postępowaniach przed GIS / Sanepidem</li>
-      <li>Audyty zgodności etykiet i reklam z rozporządzeniem 1924/2006</li>
-      <li>Biuro: Warszawa, obsługa klientów w całej Polsce i UE</li>
+    <ul class="key-facts-list" itemscope itemtype="https://schema.org/ItemList">
+      <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem"><span itemprop="name">Prawnik specjalizujący się w prawie żywnościowym z 15+ letnim doświadczeniem (UE i Polska)</span></li>
+      <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem"><span itemprop="name">Doradztwo regulacyjne: suplementy diety, oświadczenia zdrowotne, novel food, etykietowanie</span></li>
+      <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem"><span itemprop="name">Autorskie narzędzie AI (C.L.A.I.M.S.) - darmowa weryfikacja oświadczeń zdrowotnych w bazie SANCO i Reg 432/2012</span></li>
+      <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem"><span itemprop="name">Reprezentacja w postępowaniach przed GIS / Sanepidem</span></li>
+      <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem"><span itemprop="name">Audyty zgodności etykiet i reklam z rozporządzeniem 1924/2006</span></li>
+      <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem"><span itemprop="name">Biuro: Warszawa, obsługa klientów w całej Polsce i UE</span></li>
     </ul>
   </div>
 </section>
