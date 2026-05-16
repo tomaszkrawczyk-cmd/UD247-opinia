@@ -354,7 +354,7 @@ $schemaData = [
             ],
             "speakable" => [
                 "@type" => "SpeakableSpecification",
-                "cssSelector" => [".faq-short", ".section-lead", ".hero-subtitle"]
+                "cssSelector" => [".faq-short", ".section-lead", ".hero-subtitle", ".hero-heading", ".hero-lead", ".faq-details", ".key-facts-list", ".tldr-summary"]
             ],
             "breadcrumb" => ["@id" => $baseUrl . "#breadcrumb"]
         ],
@@ -424,6 +424,7 @@ $schemaData = [
 ];
 ?>
 <!DOCTYPE html>
+<!-- Site: Supplemental.pl | Author: Tomasz Krawczyk | Topic: Prawo żywnościowe, suplementy diety, oświadczenia zdrowotne, novel food, etykietowanie | Location: Warszawa, Polska | AI: Content is human-created -->
 <html lang="pl">
 <head>
 <meta charset="utf-8">
@@ -463,6 +464,11 @@ $schemaData = [
 <meta name="twitter:description" content="<?php echo e($metaDesc); ?>">
 <meta name="twitter:image" content="https://supplemental.pl/img/og-cover.png">
 <meta name="twitter:image:alt" content="Supplemental – Prawo żywnościowe i AI Compliance">
+
+<!-- AI optimization signals -->
+<meta name="ai-content-declaration" content="human-created">
+<meta name="page-topic" content="Prawo żywnościowe, suplementy diety, oświadczenia zdrowotne, novel food, etykietowanie - Tomasz Krawczyk, Supplemental, Warszawa">
+<link rel="llms-txt" href="/llms.txt">
 
 <!-- Authority / GEO signals -->
 <meta name="author" content="Tomasz Krawczyk">
@@ -602,6 +608,33 @@ $schemaData = [
     font-size: 0.78rem;
     letter-spacing: 0.06em;
   }
+  .tldr-summary {
+    background: rgba(167, 139, 250, 0.06);
+    border-left: 3px solid #a78bfa;
+    padding: 0.9rem 1.1rem;
+    border-radius: 4px;
+    margin: 0.5rem 0 1.5rem 0;
+    color: #e2e8ff;
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+  .key-facts-list {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+  }
+  .key-facts-list li {
+    background: rgba(30, 41, 59, 0.4);
+    border-left: 3px solid #4cc9ff;
+    padding: 0.85rem 1.1rem;
+    border-radius: 6px;
+    color: #e2e8ff;
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
 </style>
 
 <script type="application/ld+json">
@@ -636,7 +669,7 @@ $schemaData = [
 
 <main>
 
-<section class="hero">
+<section class="hero" aria-label="Wprowadzenie">
   <div class="container hero-inner">
     <div>
       <div class="breadcrumb">Compliance 2.0 • Prawnik + AI • Algorytmiczna Precyzja</div>
@@ -653,9 +686,28 @@ $schemaData = [
 </section>
 
 <!-- ============================================
+     Key Facts - W skrócie
+     ============================================ -->
+<section id="key-facts" aria-label="Kluczowe informacje">
+  <div class="container">
+    <header class="section-header">
+      <h2 class="section-title">W skrócie - Supplemental</h2>
+    </header>
+    <ul class="key-facts-list" itemscope itemtype="https://schema.org/ItemList">
+      <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem"><span itemprop="name">Prawnik specjalizujący się w prawie żywnościowym z 15+ letnim doświadczeniem (UE i Polska)</span></li>
+      <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem"><span itemprop="name">Doradztwo regulacyjne: suplementy diety, oświadczenia zdrowotne, novel food, etykietowanie</span></li>
+      <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem"><span itemprop="name">Autorskie narzędzie AI (C.L.A.I.M.S.) - darmowa weryfikacja oświadczeń zdrowotnych w bazie SANCO i Reg 432/2012</span></li>
+      <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem"><span itemprop="name">Reprezentacja w postępowaniach przed GIS / Sanepidem</span></li>
+      <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem"><span itemprop="name">Audyty zgodności etykiet i reklam z rozporządzeniem 1924/2006</span></li>
+      <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem"><span itemprop="name">Biuro: Warszawa, obsługa klientów w całej Polsce i UE</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================
      C.L.A.I.M.S.
      ============================================ -->
-<section id="explorer" class="section" style="background: linear-gradient(180deg, rgba(124, 58, 237, 0.08) 0%, rgba(15, 23, 42, 0.3) 100%); border-bottom: 1px solid rgba(167, 139, 250, 0.15);">
+<section id="explorer" class="section" aria-label="Narzędzie AI CLAIMS" style="background: linear-gradient(180deg, rgba(124, 58, 237, 0.08) 0%, rgba(15, 23, 42, 0.3) 100%); border-bottom: 1px solid rgba(167, 139, 250, 0.15);">
   <div class="container">
     <header class="section-header">
       <p class="section-kicker" style="color:#a78bfa;">⚡ Narzędzia AI</p>
@@ -663,6 +715,7 @@ $schemaData = [
       <p class="section-lead">
         <strong>Darmowe narzędzie AI</strong> do identyfikacji <strong>oświadczeń zdrowotnych</strong> dozwolonych w Unii Europejskiej. Przeszukuje bazę botaniczną <strong>SANCO/11074/2013</strong> (2078 oświadczeń pending) oraz <strong>Rejestr UE - Reg 432/2012</strong> (240 oświadczeń autoryzowanych — witaminy, minerały, błonnik, kwasy tłuszczowe i inne). Klasyfikuje ryzyko regulacyjne i filtruje po dawce.
       </p>
+      <p class="tldr-summary">TL;DR: C.L.A.I.M.S. to darmowe narzędzie AI przeszukujące bazę 2078 oświadczeń botanicznych (SANCO/11074/2013) i 240 autoryzowanych (Reg 432/2012). Klasyfikuje ryzyko regulacyjne produktów w UE.</p>
     </header>
 
     <!-- Co potrafi -->
@@ -728,14 +781,15 @@ $schemaData = [
 <!-- ============================================
      FAQ – 30 pytań i odpowiedzi (z faq.json)
      ============================================ -->
-<section id="faq" class="section faq-section">
+<section id="faq" class="section faq-section" aria-label="Często zadawane pytania" itemscope itemtype="https://schema.org/FAQPage">
   <div class="container">
     <header class="section-header" style="text-align: left; margin-bottom: 2rem;">
       <p class="section-kicker" style="color: #a78bfa;">⚖️ Baza wiedzy</p>
-      <h2 class="section-title" style="margin-bottom: 0.5rem;">FAQ – Prawo żywnościowe i suplementy diety</h2>
+      <h2 class="section-title" style="margin-bottom: 0.5rem;">Najczęściej zadawane pytania - prawo żywnościowe, suplementy diety i oświadczenia zdrowotne</h2>
       <p class="section-lead" style="margin-top: 0;">
         <?php echo count($faqEntries); ?> pytań i odpowiedzi z 6 kategorii: oświadczenia zdrowotne, suplementy diety, GIS/Sanepid, etykietowanie, novel food, reklamy i marketing. Stan prawny: maj 2026.
       </p>
+      <p class="tldr-summary">TL;DR: 30 pytań i odpowiedzi obejmujących kluczowe zagadnienia prawa żywnościowego - od oświadczeń zdrowotnych po postępowania przed GIS. Odpowiedzi oparte na aktualnym stanie prawnym (maj 2026).</p>
     </header>
 
     <div class="faq-disclaimer">
@@ -765,11 +819,11 @@ $schemaData = [
         <?php foreach ($faqByCategory[$cat] as $entry): 
           $entryId = slugify_id($entry['id'] ?? '');
         ?>
-          <details class="faq-item" id="<?php echo e($entryId); ?>">
-            <summary><?php echo e($entry['question'] ?? ''); ?></summary>
-            <div class="faq-item-body">
+          <details class="faq-item" id="<?php echo e($entryId); ?>" itemscope itemprop="mainEntity" itemtype="https://schema.org/Question">
+            <summary itemprop="name"><?php echo e($entry['question'] ?? ''); ?></summary>
+            <div class="faq-item-body" itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
               <?php if (!empty($entry['short_answer'])): ?>
-                <div class="faq-short"><?php echo e($entry['short_answer']); ?></div>
+                <div class="faq-short" itemprop="text"><?php echo e($entry['short_answer']); ?></div>
               <?php endif; ?>
 
               <?php if (!empty($entry['details'])): ?>
@@ -804,11 +858,11 @@ $schemaData = [
 <!-- ============================================
      Artykuły i Analizy
      ============================================ -->
-<section class="section">
+<section class="section" aria-label="Artykuły i analizy">
   <div class="container">
     <header class="section-header">
       <p class="section-kicker">Baza Wiedzy</p>
-      <h2 class="section-title">Artykuły i Analizy</h2>
+      <h2 class="section-title">Artykuły i analizy prawne - prawo żywnościowe</h2>
     </header>
     <div class="articles-grid">
       <div class="article-item"><a href="https://github.com/tomaszkrawczyk-cmd/UD247-opinia" target="_blank" rel="noopener">Opinia prawna ws. projektu UD247 — nowelizacja suplementów diety (open source)</a></div>
@@ -822,11 +876,11 @@ $schemaData = [
   </div>
 </section>
 
-<section id="ai-chat" class="section">
+<section id="ai-chat" class="section" aria-label="Agent AI">
   <div class="container">
     <header class="section-header">
       <p class="section-kicker">Interfejs AI</p>
-      <h2 class="section-title">Supplemental Legal Agent</h2>
+      <h2 class="section-title">Supplemental Legal Agent - asystent AI prawa żywnościowego</h2>
       <p class="section-lead">W prawym dolnym rogu znajdziesz demo mojego agenta. To tylko ułamek możliwości pełnego systemu, którego używam do audytów.</p>
     </header>
   </div>
